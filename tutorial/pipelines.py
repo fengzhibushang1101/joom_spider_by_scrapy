@@ -39,6 +39,7 @@ class DuplicatesPipeline(object):
 class CategoryPipeline(object):
     def __init__(self):
         self.session = get_session()
+        self.session_count = 0
 
     def process_item(self, item, spider):
         if isinstance(item, CategoryItem):
@@ -53,12 +54,16 @@ class CategoryPipeline(object):
         elif isinstance(item, UserItem):
             sql_str = text('insert into joom_user (user_no, full_name, images) values (:user_no, :full_name, :images) on duplicate key update full_name=:full_name, images = :images;')
         else:
-            sql_str = text('insert into joom_review (review_no,create_time,update_time,pro_no,variation_id,user_no,joom_review.language,origin_text,new_text,order_id,is_anonymous,colors,star,shop_no,photos) VALUES (:review_no,:create_time,:update_time,:pro_no,:variation_id,:user_no,:rev_language,:origin_text,:new_text,:order_id,:is_anonymous,:colors,:star,:shop_no,:photos) on duplicate key update star=:star;')
+            sql_str = text('insert into joom_review (review_no,create_time,update_time,pro_no,variation_id,user_no,joom_review.language,origin_text,new_text,order_id,is_anonymous,colors,star,shop_no,photos) VALUES (:review_no,:create_time,:update_time,:pro_no,:variation_id,:user_no,:language,:origin_text,:new_text,:order_id,:is_anonymous,:colors,:star,:shop_no,:photos) on duplicate key update star=:star;')
+        self.session_count += 1
         self.session.execute(sql_str, dict(item))
-        self.session.commit()
+        if self.session_count > 10000:
+            self.session_count = 0
+            self.session.commit()
         return item
 
     def close_spider(self, spider):
+        self.session.commit()
         self.session.close()
 
 

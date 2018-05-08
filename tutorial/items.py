@@ -73,7 +73,7 @@ class ReviewItem(scrapy.Item):
     pro_no = scrapy.Field()
     variation_id = scrapy.Field()
     user_no = scrapy.Field()
-    rev_language = scrapy.Field()
+    language = scrapy.Field()
     origin_text = scrapy.Field()
     new_text = scrapy.Field()
     order_id = scrapy.Field()

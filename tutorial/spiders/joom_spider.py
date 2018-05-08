@@ -12,8 +12,9 @@ import scrapy
 
 import ujson as json
 
-from tutorial.items import CategoryItem, ProductBodyItem, ShopItem, ProductItem
+from tutorial.items import CategoryItem, ProductBodyItem, ShopItem, ProductItem, ReviewItem, UserItem
 from tutorial.spiders.utils.execute_product import trans_pro
+from tutorial.spiders.utils.execute_review import retrieve_review
 from tutorial.spiders.utils.func import get_joom_token, random_key
 from tutorial.sql.base import sessionCM
 from tutorial.sql.category import Category
@@ -27,6 +28,8 @@ class JoomSpider(scrapy.Spider):
     batch_url = "https://api.joom.com/1.1/search/products?language=en-US&currency=USD&_=jfs3%s"
     product_url = "https://api.joom.com/1.1/products/%s?language=en-US&currency=USD&_=jfs7%s"
     headers = {"authorization": get_joom_token(), "origin": "https://www.joom.com", "content-type": "application/json"}
+    review_url = "https://api.joom.com/1.1/products/%s/reviews?filter_id=all&count=%s&sort=top&language=en-US&currency=USD&_=jfs8%s"
+    review_nurl = "https://api.joom.com/1.1/products/%s/reviews?filter_id=all&count=%s&sort=top&pageToken=%s&language=en-US&currency=USD&_=jfs8%s"
     cate_num = 0
     pro_num = 0
     pro_no_set = set()
@@ -85,6 +88,39 @@ class JoomSpider(scrapy.Spider):
             meta={"pro_id": pro_id}
         )
 
+    def yield_review_task(self, meta):
+        rev_cnt = 100
+        page_token = meta.get("page_token")
+        if page_token:
+            url = self.review_nurl % (meta["pro_id"], rev_cnt, page_token, random_key(4))
+        else:
+            url = self.review_url % (meta["pro_id"], rev_cnt, random_key(4))
+        return scrapy.Request(
+            url=url,
+            headers=self.headers,
+            callback=self.parse_reviews,
+            errback=self.errback,
+            meta=meta
+        )
+
+    def parse_reviews(self, response):
+        if "unauthorized" in response.body:
+            auth = get_joom_token()
+            self.headers = {"authorization": auth, "origin": "https://www.joom.com"}
+            yield self.yield_review_task(response.meta)
+        meta = response.meta
+        content = json.loads(response.body)
+        reviews = content["payload"]["items"]
+        review_datas, review_users = retrieve_review(reviews)
+        if content["payload"].get("nextPageToken"):
+            if len(reviews) > 0:
+                meta["page_token"] = content["payload"]["nextPageToken"]
+                yield self.yield_review_task(response.meta)
+        for review in review_datas:
+            yield ReviewItem(review)
+        for user in review_users:
+            yield UserItem(user)
+
     def parse_pro_detail(self, response):
         if "unauthorized" in response.body:
             auth = get_joom_token()
@@ -110,6 +146,7 @@ class JoomSpider(scrapy.Spider):
                 if item["id"] not in self.pro_no_set:
                     self.pro_no_set.add(item["id"])
                     yield self.yield_pro_detail_task(item["id"])
+                    yield self.yield_review_task({"pro_id": item["id"]})
             if len(items) == 0:
                 pass
             else:
