@@ -12,6 +12,8 @@ import scrapy
 
 import ujson as json
 
+from tutorial.items import CategoryItem, ProductBodyItem, ShopItem, ProductItem
+from tutorial.spiders.utils.execute_product import trans_pro
 from tutorial.spiders.utils.func import get_joom_token, random_key
 from tutorial.sql.base import sessionCM
 from tutorial.sql.category import Category
@@ -27,6 +29,7 @@ class JoomSpider(scrapy.Spider):
     headers = {"authorization": get_joom_token(), "origin": "https://www.joom.com", "content-type": "application/json"}
     cate_num = 0
     pro_num = 0
+    pro_no_set = set()
 
     def start_requests(self):
         yield self.yield_cate_task(self.root_url % random_key(4), dict(p_tag=None, level=1, p_id=0))
@@ -78,12 +81,22 @@ class JoomSpider(scrapy.Spider):
             url=url,
             headers=self.headers,
             callback=self.parse_pro_detail,
-            errback=self.errback
+            errback=self.errback,
+            meta={"pro_id": pro_id}
         )
 
     def parse_pro_detail(self, response):
+        if "unauthorized" in response.body:
+            auth = get_joom_token()
+            self.headers = {"authorization": auth, "origin": "https://www.joom.com"}
+            yield self.yield_pro_detail_task(response.meta["pro_id"])
         self.pro_num += 1
         print u"已经采集%s个产品" % self.pro_num
+        content = json.loads(response.body)
+        pro_body, shop_info, pro_info = trans_pro(content)
+        yield ProductBodyItem(pro_body)
+        yield ShopItem(shop_info)
+        yield ProductItem(pro_info)
 
     def errback(self, failure):
         pass
@@ -94,7 +107,9 @@ class JoomSpider(scrapy.Spider):
         if "payload" in content and "nextPageToken" in content["payload"]:
             items = content["payload"]["items"]
             for item in items:
-                yield self.yield_pro_detail_task(item["id"])
+                if item["id"] not in self.pro_no_set:
+                    self.pro_no_set.add(item["id"])
+                    yield self.yield_pro_detail_task(item["id"])
             if len(items) == 0:
                 pass
             else:
@@ -118,12 +133,22 @@ class JoomSpider(scrapy.Spider):
                 name = c_info['name']
                 is_leaf = 0 if c_info["hasPublicChildren"] else 1
                 cate = Category.find_by_site_tag(session, 31, tag)
-                if not cate:
-                    n_p_id = Category.save(session, tag, name, meta["p_id"], is_leaf, meta["level"], 31)
-                else:
-                    n_p_id = cate.id
                 if not is_leaf:
+                    if not cate:
+                        n_p_id = Category.save(session, tag, name, meta["p_id"], is_leaf, meta["level"], 31)
+                    else:
+                        n_p_id = cate.id
                     yield self.yield_cate_task(self.sub_url % (tag, random_key(4)),
                                                dict(p_tag=tag, level=n_level, p_id=n_p_id))
                 else:
+                    cate_item = CategoryItem(
+                        tag=tag,
+                        name=name,
+                        p_id=meta["p_id"],
+                        is_leaf=is_leaf,
+                        level=meta["level"],
+                        site_id=31,
+                        status=0
+                    )
+                    yield cate_item
                     yield self.yield_cate_pro_task(tag, {})
