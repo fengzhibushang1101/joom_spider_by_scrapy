@@ -120,10 +120,10 @@ class JoomSpider(scrapy.Spider):
             if len(reviews) > 0:
                 meta["page_token"] = content["payload"]["nextPageToken"]
                 yield self.yield_review_task(response.meta)
-        # for review in review_datas:
-            # yield ReviewItem(review)
-        # for user in review_users:
-        #     yield UserItem(user)
+        for review in review_datas:
+            yield ReviewItem(review)
+        for user in review_users:
+            yield UserItem(user)
 
     def parse_pro_detail(self, response):
         if "unauthorized" in response.body:
@@ -134,9 +134,9 @@ class JoomSpider(scrapy.Spider):
         print u"已经采集%s个产品" % self.pro_num
         content = json.loads(response.body)
         pro_body, shop_info, pro_info = trans_pro(content)
-        # yield ProductBodyItem(pro_body)
-        # yield ShopItem(shop_info)
-        # yield ProductItem(pro_info)
+        yield ProductBodyItem(pro_body)
+        yield ShopItem(shop_info)
+        yield ProductItem(pro_info)
 
     def errback(self, failure):
         pass
