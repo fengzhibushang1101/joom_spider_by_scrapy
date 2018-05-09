@@ -121,7 +121,8 @@ class JoomSpider(scrapy.Spider):
         reviews = content["payload"]["items"]
         # review_datas, review_users = retrieve_review(reviews)
         if reviews:
-            yield JoomReviewsItem(bodys=reviews)
+            # yield JoomReviewsItem(bodys=reviews)
+            self.review_coll.insert_many(reviews)
         if content["payload"].get("nextPageToken"):
             if len(reviews) > 0:
                 meta["page_token"] = content["payload"]["nextPageToken"]
@@ -139,8 +140,8 @@ class JoomSpider(scrapy.Spider):
         self.pro_num += 1
         print u"已经采集%s个产品" % self.pro_num
         content = json.loads(response.body)
-        yield JoomProItem(body=content.get("payload", {}))
-        # self.pro_coll.save(content.get("payload", {}))
+        # yield JoomProItem(body=content.get("payload", {}))
+        self.pro_coll.save(content.get("payload", {}))
         # pro_body, shop_info, pro_info = trans_pro(content)
         # yield ProductBodyItem(pro_body)
         # yield ShopItem(shop_info)
