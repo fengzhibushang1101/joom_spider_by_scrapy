@@ -82,3 +82,11 @@ class ReviewItem(scrapy.Item):
     star = scrapy.Field()
     shop_no = scrapy.Field()
     photos = scrapy.Field()
+
+
+class JoomProItem(scrapy.Item):
+    body = scrapy.Field()
+
+
+class JoomReviewsItem(scrapy.Item):
+    bodys = scrapy.Field()
