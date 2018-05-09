@@ -13,6 +13,7 @@ import scrapy
 import ujson as json
 
 from tutorial.items import CategoryItem, ProductBodyItem, ShopItem, ProductItem, ReviewItem, UserItem
+from tutorial.nosql.mongo_utils import Coll
 from tutorial.spiders.utils.execute_product import trans_pro
 from tutorial.spiders.utils.execute_review import retrieve_review
 from tutorial.spiders.utils.func import get_joom_token, random_key
@@ -30,6 +31,8 @@ class JoomSpider(scrapy.Spider):
     headers = {"authorization": get_joom_token(), "origin": "https://www.joom.com", "content-type": "application/json"}
     review_url = "https://api.joom.com/1.1/products/%s/reviews?filter_id=all&count=%s&sort=top&language=en-US&currency=USD&_=jfs8%s"
     review_nurl = "https://api.joom.com/1.1/products/%s/reviews?filter_id=all&count=%s&sort=top&pageToken=%s&language=en-US&currency=USD&_=jfs8%s"
+    review_coll = Coll("joom_reviews")
+    pro_coll = Coll("joom_pro")
     cate_num = 0
     pro_num = 0
     pro_page_num = 0
@@ -115,15 +118,17 @@ class JoomSpider(scrapy.Spider):
         meta = response.meta
         content = json.loads(response.body)
         reviews = content["payload"]["items"]
-        review_datas, review_users = retrieve_review(reviews)
+        # review_datas, review_users = retrieve_review(reviews)
+        if reviews:
+            self.review_coll.insert_many(reviews)
         if content["payload"].get("nextPageToken"):
             if len(reviews) > 0:
                 meta["page_token"] = content["payload"]["nextPageToken"]
                 yield self.yield_review_task(response.meta)
-        for review in review_datas:
-            yield ReviewItem(review)
-        for user in review_users:
-            yield UserItem(user)
+        # for review in review_datas:
+        #     yield ReviewItem(review)
+        # for user in review_users:
+        #     yield UserItem(user)
 
     def parse_pro_detail(self, response):
         if "unauthorized" in response.body:
@@ -133,10 +138,11 @@ class JoomSpider(scrapy.Spider):
         self.pro_num += 1
         print u"已经采集%s个产品" % self.pro_num
         content = json.loads(response.body)
-        pro_body, shop_info, pro_info = trans_pro(content)
-        yield ProductBodyItem(pro_body)
-        yield ShopItem(shop_info)
-        yield ProductItem(pro_info)
+        self.pro_coll.save(content.get("payload", {}))
+        # pro_body, shop_info, pro_info = trans_pro(content)
+        # yield ProductBodyItem(pro_body)
+        # yield ShopItem(shop_info)
+        # yield ProductItem(pro_info)
 
     def errback(self, failure):
         pass

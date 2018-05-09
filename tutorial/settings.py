@@ -21,8 +21,11 @@ NEWSPIDER_MODULE = 'tutorial.spiders'
 ROBOTSTXT_OBEY = True
 
 # Configure maximum concurrent requests performed by Scrapy (default: 16)
-CONCURRENT_REQUESTS = 64
-CONCURRENT_REQUESTS_PER_DOMAIN = 64
+CONCURRENT_REQUESTS = 32
+CONCURRENT_REQUESTS_PER_DOMAIN = 32
+LOG_LEVEL = "INFO"
+# DOWNLOAD_TIMEOUT = 5
+# RETRY_TIMES = 3
 
 # Configure a delay for requests for the same website (default: 0)
 # See https://doc.scrapy.org/en/latest/topics/settings.html#download-delay
